@@ -1,0 +1,129 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.neoforged.gradle.userdev' version '7.1.25'
+}
+
+version = mod_version
+group = mod_group_id
+
+base {
+    archivesName = mod_id
+}
+
+tasks.named('jar', Jar).configure {
+    archiveFileName = "${mod_id}-${minecraft_version}-neoforge-${mod_version}.jar"
+    dependsOn tasks.named('classes'), tasks.named('processResources')
+    reproducibleFileOrder = true
+    preserveFileTimestamps = false
+
+    doLast {
+        def packagedJar = archiveFile.get().asFile
+        def zipFile = new java.util.zip.ZipFile(packagedJar)
+        try {
+            def modsToml = zipFile.getEntry('META-INF/neoforge.mods.toml')
+            if (modsToml == null) {
+                throw new RuntimeException("Packaged JAR is missing META-INF/neoforge.mods.toml")
+            }
+
+            def packagedToml = zipFile.getInputStream(modsToml).getText('UTF-8')
+            if (packagedToml.contains('${')) {
+                throw new RuntimeException("Packaged neoforge.mods.toml still contains unresolved placeholders")
+            }
+        } finally {
+            zipFile.close()
+        }
+    }
+}
+
+tasks.register('releaseJar') {
+    group = 'build'
+    description = 'Builds the release JAR and verifies packaged NeoForge metadata.'
+    dependsOn tasks.named('jar')
+}
+
+sourceSets.main.resources {
+    srcDir 'src/generated/resources'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neo_version}"
+}
+
+runs {
+    configureEach { run ->
+        run.systemProperty 'forge.logging.markers', 'REGISTRIES'
+        run.systemProperty 'forge.logging.console.level', 'debug'
+        run.modSource project.sourceSets.main
+    }
+
+    client {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+    }
+
+    server {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        argument '--nogui'
+    }
+
+    gameTestServer {
+        systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+    }
+
+    data {
+        arguments.addAll '--mod', project.mod_id, '--all', '--output',
+                file('src/generated/resources/').getAbsolutePath(), '--existing',
+                file('src/main/resources/').getAbsolutePath()
+    }
+}
+
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_logo_file          : mod_logo_file,
+            mod_description        : mod_description
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
