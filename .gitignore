@@ -4,6 +4,7 @@
 bin/
 build/
 out/
+release/
 runs/
 jar.out
 jar.err
