@@ -15,10 +15,10 @@ Minecraft protects its own players by not allowing monsters and other hostile cr
 - Uses a simple TOML config so the protected entities, affected entities and radius can be changed without recompiling.
 - Can optionally log startup and prevented spawns to the console.
 
-## Requirements
+## Compatibility
 
 - Minecraft 1.21.1
-- NeoForge 21.1.226
+- NeoForge 21.1.226 (will likely work fine with other versions, too)
 - Java 21
 - MineColonies is optional
 
